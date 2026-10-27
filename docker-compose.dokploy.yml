@@ -1,0 +1,84 @@
+# Production stack for Dokploy (Create Service > Compose, Compose Path: ./docker-compose.dokploy.yml).
+# Dokploy's Traefik handles HTTPS: add the domain in the Domains tab (service "app", port 3000).
+# Put the settings from .env.example in the Environment tab (DOMAIN is not needed here).
+name: dramaflix
+
+x-db-url: &db-url postgresql://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-dramaflix}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-dramaflix}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: *db-url
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      # No DATABASE_URL build arg: the image builds against a throwaway database (see Dockerfile).
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?set NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-DramaFlix}
+        NEXT_PUBLIC_DAILYMOTION_PLAYER_ID: ${NEXT_PUBLIC_DAILYMOTION_PLAYER_ID:-}
+        ALLOWED_SOURCE_HOSTS: ${ALLOWED_SOURCE_HOSTS:-}
+        IMAGE_HOSTS: ${IMAGE_HOSTS:-}
+        INDEXNOW_KEY: ${INDEXNOW_KEY:-}
+    env_file: .env
+    environment:
+      DATABASE_URL: *db-url
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks:
+      - default
+      - dokploy-network
+
+  cron:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET}
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-dramaflix}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./deploy/crontab:/etc/crontabs/root:ro
+      # Outside the cloned code folder, so a redeploy never wipes the backups.
+      - ../files/backups:/backups
+    entrypoint: ["sh", "-c", "export -p > /etc/cron.env && exec crond -f -l 8"]
+    depends_on:
+      app:
+        condition: service_healthy
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  pgdata:

@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DramaStatus {
+  ONGOING
+  COMPLETED
+  UPCOMING
+}
+
+enum DramaType {
+  SERIES
+  MOVIE
+  SHORT
+}
+
+enum SourceType {
+  IFRAME
+  HLS
+  MP4
+  DAILYMOTION
+}
+
+model Drama {
+  id             Int         @id @default(autoincrement())
+  slug           String      @unique
+  title          String
+  altTitles      String[]
+  synopsis       String
+  posterUrl      String
+  bannerUrl      String?
+  trailerUrl     String?
+  year           Int?
+  type           DramaType   @default(SERIES)
+  status         DramaStatus @default(ONGOING)
+  totalEpisodes  Int?
+  network        String?
+  rating         Float?
+  views          Int         @default(0)
+  featured       Boolean     @default(false)
+  /// Position in the homepage slider (lower comes first)
+  featuredOrder  Int         @default(0)
+  published      Boolean     @default(true)
+  /// Set when moved to the admin trash; trashed rows are also unpublished
+  deletedAt      DateTime?
+  seoTitle       String?
+  seoDescription String?
+  dmPlaylistId   String?
+  lastSyncedAt   DateTime?
+  countryId      Int?
+  country        Country?    @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  genres         Genre[]
+  actors         Actor[]
+  episodes       Episode[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([published, updatedAt])
+  @@index([published, views])
+  @@index([year])
+  @@index([deletedAt])
+  @@index([featured, featuredOrder])
+}
+
+model Episode {
+  id           Int       @id @default(autoincrement())
+  dramaId      Int
+  drama        Drama     @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  number       Int
+  title        String?
+  synopsis     String?
+  thumbnailUrl String?
+  durationSec  Int?
+  airDate      DateTime?
+  published    Boolean   @default(true)
+  deletedAt    DateTime?
+  sources      Source[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([dramaId, number])
+  @@index([published, createdAt])
+}
+
+model Source {
+  id            Int        @id @default(autoincrement())
+  episodeId     Int
+  episode       Episode    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  label         String     @default("Server 1")
+  type          SourceType
+  url           String
+  priority      Int        @default(0)
+  isActive      Boolean    @default(true)
+  lastCheckedAt DateTime?
+  lastStatus    Int?
+  createdAt     DateTime   @default(now())
+
+  @@index([episodeId, priority])
+  @@index([type, url])
+}
+
+model Genre {
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String
+  description String?
+  dramas      Drama[]
+}
+
+model Country {
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String
+  description String?
+  dramas      Drama[]
+}
+
+model Actor {
+  id       Int     @id @default(autoincrement())
+  slug     String  @unique
+  name     String
+  photoUrl String?
+  bio      String?
+  dramas   Drama[]
+}
+
+model Post {
+  id          Int       @id @default(autoincrement())
+  slug        String    @unique
+  title       String
+  excerpt     String
+  content     String
+  coverUrl    String?
+  published   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([published, publishedAt])
+}
+
+/// One row per admin login, so a session can be revoked server-side (logout, "sign out everywhere").
+model AdminSession {
+  id         String    @id
+  username   String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+
+  @@index([expiresAt])
+}

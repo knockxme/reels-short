@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #09090d;
+  --surface: #14141b;
+  --surface-2: #1c1c26;
+  --surface-3: #262632;
+  --line: #2a2a37;
+  --text: #f4f4f7;
+  --muted: #a1a1b2;
+  --accent: #e11d48;
+  --accent-hover: #f43f5e;
+  --accent-soft: #ff6b8f;
+  --accent-ink: #ffffff;
+  --gold: #ffc247;
+  --ring: #ffffff;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-main);
+  --ease-out: var(--ease-out);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Base and component classes live in Tailwind's layers, so utilities like `hidden` or `h-9`
+   on the same element still win. Unlayered CSS would override every utility. */
+@layer base {
+  /* One visible focus style for every control; mouse clicks don't show it */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  a,
+  button,
+  summary,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+}
+
+@layer components {
+/* Buttons and chips shared across pages */
+.btn {
+  display: inline-flex;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding-inline: 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-lg {
+  height: 3rem;
+  padding-inline: 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 8px 24px -8px rgb(225 29 72 / 0.55);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-secondary {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.btn-secondary:hover {
+  background: var(--surface-3);
+}
+.btn-glass {
+  background: rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+.btn-glass:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+.btn-muted {
+  background: rgb(20 20 27 / 0.5);
+  color: var(--muted);
+  cursor: default;
+}
+
+.chip {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  border-radius: 9999px;
+  background: var(--surface);
+  padding-inline: 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    background-color 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    color 180ms var(--ease-out);
+}
+.chip:hover {
+  background: var(--surface-2);
+  color: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgb(225 29 72 / 0.6);
+}
+
+/* Section heading with a short accent bar */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.section-title::before {
+  content: "";
+  width: 4px;
+  height: 1.1em;
+  border-radius: 9999px;
+  background: linear-gradient(var(--accent-soft), var(--accent));
+}
+@media (min-width: 640px) {
+  .section-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* Small overlay badges on posters */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 1.25rem;
+  letter-spacing: 0.02em;
+}
+}
+
+/* Horizontal rails: snap + hidden scrollbar on touch devices */
+.rail {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 1rem;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+}
+
+.prose-drama p {
+  margin: 0 0 1em;
+  line-height: 1.75;
+  color: #d6d6de;
+}
+.prose-drama h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1.6em 0 0.6em;
+}
+.prose-drama h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1.4em 0 0.5em;
+}
+.prose-drama ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 1em;
+}
+.prose-drama a {
+  color: var(--accent-soft);
+  text-decoration: underline;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

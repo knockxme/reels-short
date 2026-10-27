@@ -1,0 +1,14 @@
+# Caddy gets and renews the HTTPS certificate for $DOMAIN automatically.
+# Point the domain's A/AAAA records at this server first (ports 80 and 443 open).
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# The real visitor IP, used by the admin login rate limit.
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

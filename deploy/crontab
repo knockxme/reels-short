@@ -1,0 +1,7 @@
+# Scheduled jobs (busybox crond, server time = UTC). Each job loads the container env first.
+# Check every video link daily; hides dead Dailymotion videos and lists broken links in /admin.
+0 4 * * * . /etc/cron.env; wget -q -O /dev/null --header="Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/check-links
+# Empty items left in the admin trash for 30+ days.
+30 4 * * * . /etc/cron.env; wget -q -O /dev/null --header="Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/sync
+# Nightly database backup to ./backups, keeping the last $BACKUP_KEEP_DAYS days. Copy them off the server too.
+15 3 * * * . /etc/cron.env; pg_dump -Fc -f /backups/db-$(date +\%Y-\%m-\%d).dump && find /backups -name 'db-*.dump' -mtime +$BACKUP_KEEP_DAYS -delete
