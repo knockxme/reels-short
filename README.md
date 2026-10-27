@@ -77,20 +77,72 @@ The included stack runs everything on one Linux server with Docker: Postgres, th
 
 ### Deploying with Dokploy
 
-Use `docker-compose.dokploy.yml` instead: it leaves out Caddy (Dokploy's Traefik does HTTPS) and builds the image without a running database (a throwaway one inside the build), so the panel's single deploy button works.
+If you already run a [Dokploy](https://dokploy.com) panel, use `docker-compose.dokploy.yml`. It leaves out Caddy, because Dokploy's Traefik handles HTTPS. It also builds the image without a running database (a throwaway one starts inside the build), so the panel's Deploy button is all you need.
 
-1. **Create Service → Compose**, connect the repository, set **Compose Path** to `./docker-compose.dokploy.yml`.
-2. **Environment** tab: paste your filled-in `.env.example` values (`DOMAIN` is not needed). `NEXT_PUBLIC_SITE_URL` must be the domain you add next.
-3. **Domains** tab: add your domain, service `app`, port `3000`, HTTPS on with Let's Encrypt. Point the domain's DNS `A` record at the server first.
-4. **Deploy**. Then add genres and countries once, over SSH on the server (`<app-name>` is the compose app name Dokploy shows):
-   ```bash
-   cd /etc/dokploy/compose/<app-name>/code
-   docker compose -p <app-name> -f docker-compose.dokploy.yml run --rm migrate npx prisma db seed
-   ```
+**1. Point your domain at the server.** Add DNS records `A @ <server-ip>` and `A www <server-ip>`. If you use Cloudflare, keep the cloud grey (DNS only) until HTTPS works.
 
-Pages prerendered during the build are empty and refresh from the real database within about a minute of the first visit. Backups go to `../files/backups` next to the cloned code.
+**2. Connect GitHub.** In Dokploy go to **Settings → Git → GitHub**, create the GitHub App and install it on this repository.
 
-**Scheduled jobs** (in `deploy/crontab`, UTC): link checker daily at 04:00, trash cleanup at 04:30, database backup at 03:15 into `./backups` (kept for `BACKUP_KEEP_DAYS`). **Copy the backups off the server** regularly (e.g. `rclone` to cloud storage). Restore with `pg_restore -d <db> --clean <file>.dump`.
+**3. Create the service.** Open a project, then **Create Service → Compose**. On the **General** tab choose provider GitHub, repository `knockxme/reels-short`, branch `main`, and Compose Path `./docker-compose.dokploy.yml`. Save.
+
+**4. Add the settings.** Generate the secrets:
+```bash
+openssl rand -hex 32   # SESSION_SECRET
+openssl rand -hex 16   # CRON_SECRET
+openssl rand -hex 24   # POSTGRES_PASSWORD
+```
+Paste this into the **Environment** tab with your own values:
+```env
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+NEXT_PUBLIC_SITE_NAME=DramaFlix
+CONTACT_EMAIL=you@yourdomain.com
+ADMIN_USERNAME=youradmin
+ADMIN_PASSWORD=
+SESSION_SECRET=
+CRON_SECRET=
+POSTGRES_USER=dramaflix
+POSTGRES_PASSWORD=
+POSTGRES_DB=dramaflix
+BACKUP_KEEP_DAYS=14
+NEXT_PUBLIC_DAILYMOTION_PLAYER_ID=
+ALLOWED_SOURCE_HOSTS=
+IMAGE_HOSTS=
+INDEXNOW_KEY=
+GOOGLE_SITE_VERIFICATION=
+BING_SITE_VERIFICATION=
+```
+Leave out `DATABASE_URL` (the compose file builds it from the `POSTGRES_*` values) and `DOMAIN`. `ADMIN_PASSWORD` needs 12+ characters and must not start with "admin". The app refuses to start with weak or placeholder secrets.
+
+**5. Add the domain.** On the **Domains** tab add host `yourdomain.com`, service `app`, port `3000`, path `/`, HTTPS on, certificate Let's Encrypt. Add `www.yourdomain.com` the same way if you want it.
+
+**6. Deploy.** Click **Deploy** and follow the build on the **Deployments** tab. The first build takes about 3–8 minutes. On a server with less than 4 GB RAM, add swap first or the build may be killed:
+```bash
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+**7. Add genres and countries (once).** Over SSH on the server, where `<app-name>` is the app name shown on the service's General tab (e.g. `dramaflix-abc123`):
+```bash
+cd /etc/dokploy/compose/<app-name>/code
+docker compose -p <app-name> -f docker-compose.dokploy.yml run --rm migrate npx prisma db seed
+```
+
+**8. Check it.** `curl https://yourdomain.com/api/health` should print `{"ok":true}`. Log in at `https://yourdomain.com/admin`. With Cloudflare, you can now turn the proxy on and set SSL/TLS to **Full (strict)**.
+
+**Updates:** push to `main`, then click **Deploy**, or turn on **Autodeploy** on the General tab. Settings that start with `NEXT_PUBLIC_`, plus `ALLOWED_SOURCE_HOSTS` and `IMAGE_HOSTS`, need a full redeploy; other settings only need a restart.
+
+**Logs:** the service's **Logs** tab (pick `app`). **Backups:** `/etc/dokploy/compose/<app-name>/files/backups/` on the server.
+
+| Problem | Fix |
+| --- | --- |
+| Build stops with "Killed" | Out of memory: add swap (step 6) or more RAM |
+| App log says "Refusing to start" | A setting in the Environment tab is missing or too weak; the log names it |
+| No HTTPS certificate | DNS not pointing at the server yet, port 80 blocked, or Cloudflare proxy turned on too early |
+| 404 or Bad Gateway on the domain | Domain must use service `app`, port `3000`; check the app container is healthy |
+
+Pages prerendered during the build come from the empty build database, so right after a deploy a page can show empty once and then refresh from the real database within about a minute.
+
+**Scheduled jobs** (in `deploy/crontab`, UTC): link checker daily at 04:00, trash cleanup at 04:30, database backup at 03:15 into `./backups` (Dokploy: `../files/backups`), kept for `BACKUP_KEEP_DAYS`. **Copy the backups off the server** regularly (e.g. `rclone` to cloud storage). Restore with `pg_restore -d <db> --clean <file>.dump`.
 
 **Useful commands**
 ```bash
@@ -129,5 +181,6 @@ src/lib/data.ts                cached database queries (cache tags)
 src/lib/seo.ts                 titles, descriptions, JSON-LD
 src/lib/source.ts              paste parser for iframe/URL/m3u8/mp4
 src/instrumentation.ts         startup settings check + JSON error logs
-docker-compose.prod.yml        production stack; deploy/ has the Caddyfile, crontab and deploy script
+docker-compose.prod.yml        production stack for a plain server (Caddy HTTPS); deploy/ has the Caddyfile, crontab and scripts
+docker-compose.dokploy.yml     production stack for Dokploy (Traefik HTTPS, builds without a database)
 ```
