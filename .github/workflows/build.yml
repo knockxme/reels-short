@@ -1,0 +1,49 @@
+# Build test on every push and pull request: typecheck and lint, then build the Docker image the way
+# Dokploy does (no database reachable) and start the whole Dokploy stack until /api/health answers.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write test settings
+        run: |
+          cat > .env <<EOF
+          NEXT_PUBLIC_SITE_URL=https://localhost
+          NEXT_PUBLIC_SITE_NAME=DramaFlix
+          CONTACT_EMAIL=ci@localhost
+          ADMIN_USERNAME=ciadmin
+          ADMIN_PASSWORD=$(openssl rand -hex 12)
+          SESSION_SECRET=$(openssl rand -hex 32)
+          CRON_SECRET=$(openssl rand -hex 16)
+          POSTGRES_USER=dramaflix
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          POSTGRES_DB=dramaflix
+          EOF
+      # Dokploy creates this network; the compose file expects it to exist.
+      - run: docker network create dokploy-network
+      - name: Build and start the Dokploy stack
+        run: docker compose -f docker-compose.dokploy.yml up -d --build --wait --wait-timeout 180 db app
+      - name: Health check
+        run: docker compose -f docker-compose.dokploy.yml exec -T app wget -qO- http://127.0.0.1:3000/api/health
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.dokploy.yml logs --tail 200
